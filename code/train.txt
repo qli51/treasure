@@ -1,0 +1,308 @@
+content：
+1.为什么需要关注编码风格：
+注释目的而非过程
+注释隐性只是而非显性
+
+Linux内核
+lua接口代码
+
+#elif ACTIVE_PLAN == 2 
+/*
+json_get和json_get所使用的路径表达式语法：
+
+root ::= member | index;
+member ::= <name> child;
+index ::= '[' <number> ']' child;
+child ::= dot_member | index | EOF;
+dot_member ::= '.' member;
+ */
+
+/**
+ * @brief 交换两个json值的内容
+ * 
+ * @param lhs 左手侧JSON值
+ * @param rhs 右手侧JSON值
+ */
+static void json_swap(JSON *lhs, JSON *rhs)
+{
+    JSON tmp;
+    memcpy(&tmp, lhs, sizeof(tmp));
+    memcpy(lhs, rhs, sizeof(*lhs));
+    memcpy(rhs, &tmp, sizeof(tmp));
+}
+/**
+ * @brief 路径解析的上下文
+ */
+typedef struct query_ctx {
+    JSON *root;         //待查找的根JSON值
+    JSON *val;          //待替换的JSON值
+    const char *path;   //原始路径
+} query_ctx;
+
+/**
+ * @brief 处理查询结果
+ * 
+ * @param json  查找到的JSON值
+ * @param val   需要替换的JSON值，如果val不为空，表示需要将json替换为val
+ * @return const JSON* 查找结果
+ */
+static const JSON *deal_query_result(JSON *json, JSON *val)
+{
+    assert(json);
+
+    if (val) {
+        json_swap(json, val);
+        json_free(val);
+    }
+    return json;
+}
+/**
+ * @brief 报告路径解析过程发现的语法错误
+ * 
+ * @param ctx   路径解析的上下文
+ * @param info  错误说明
+ * @param cur   出错位置
+ */
+static void report_syntax_error(const query_ctx *ctx, const char *info, const char *cur)
+{
+    fprintf(stderr, "%s\n", info);
+    fprintf(stderr, "path: %s\n", ctx->path);
+    fprintf(stderr, "%*s^\n", (int)(cur - ctx->path + 6), " ");
+}
+
+static const JSON *query_child(const query_ctx *ctx, JSON *json, const char *cur);
+
+/**
+ * @brief 期待解析结束，即希望接下来的是结束符
+ * 
+ * @param json  JSON值
+ * @param cur   当前解析位置
+ * @param val   待替换的JSON值。val为NULL，表示只查询，否则将查到的子孙成员值替换为val
+ * @return const JSON* 查找到的子孙成员
+ */
+static const JSON *query_eof(const query_ctx *ctx, JSON *json, const char *cur)
+{
+    assert(ctx);
+    assert(json);
+    assert(cur);
+
+    if (*cur == '\0') {
+        return deal_query_result(json, ctx->val);
+    } else {
+        report_syntax_error(ctx, "JSON path invalid", cur);
+        json_free(ctx->val);
+        return NULL;
+    }    
+}
+/**
+ * @brief 在JSON值json中查询MEMBER表达式cur对应的子孙成员
+ * 
+ * @param json  JSON值
+ * @param cur  MEMBER表达式
+ * @param val   待替换的JSON值。val为NULL，表示只查询，否则将查到的子孙成员值替换为val
+ * @return const JSON* 查找到的子孙成员
+ */
+static const JSON *query_member(const query_ctx *ctx, JSON *json, const char *cur)
+{
+    //TODO:
+    return NULL;
+}
+/**
+ * @brief 在JSON值json中查询DOT_MEMBER表达式cur对应的子孙成员
+ * 
+ * @param json  JSON值
+ * @param cur  DOT_MEMBER表达式
+ * @param val   待替换的JSON值。val为NULL，表示只查询，否则将查到的子孙成员值替换为val
+ * @return const JSON* 查找到的子孙成员
+ */
+static const JSON *query_dot_member(const query_ctx *ctx, JSON *json, const char *cur)
+{
+    assert(ctx);
+    assert(json);
+    assert(json->type == JSON_OBJ);
+    assert(cur);
+
+    if (*cur == '.') {
+        if (cur[1] == '\0') {
+            report_syntax_error(ctx, "unexpected end", cur);
+            json_free(ctx->val);
+            return NULL;
+        }
+        return query_member(ctx, json, cur + 1);
+    } else {
+        return query_eof(ctx, json, cur);
+    }
+}
+/**
+ * @brief 在JSON值json中查询INDEX表达式cur对应的子孙成员
+ * 
+ * @param json  JSON值
+ * @param cur  INDEX表达式
+ * @param val   待替换的JSON值。val为NULL，表示只查询，否则将查到的子孙成员值替换为val
+ * @return const JSON* 查找到的子孙成员
+ */
+static const JSON *query_index(const query_ctx *ctx, JSON *json, const char *cur)
+{
+    //TODO:
+    return NULL;
+}
+/**
+ * @brief 在JSON值json中查询CHILD表达式cur对应的子孙成员
+ * 
+ * @param json  JSON值
+ * @param cur  CHILD表达式
+ * @param val   待替换的JSON值。val为NULL，表示只查询，否则将查到的子孙成员值替换为val
+ * @return const JSON* 查找到的子孙成员
+ */
+static const JSON *query_child(const query_ctx *ctx, JSON *json, const char *cur)
+{
+    assert(ctx);
+    assert(json);
+    assert(cur);
+
+    switch (json_type(json)) {
+    case JSON_NUM: case JSON_STR: case JSON_BOL: case JSON_NONE:
+        return query_eof(ctx, json, cur);
+    case JSON_ARR:
+        return query_index(ctx, json, cur);
+    case JSON_OBJ: 
+        return query_dot_member(ctx, json, cur);
+    default:
+        assert(!"dead code");
+        return NULL;
+    }
+}
+
+/**
+ * @brief 在JSON值json中查询ROOT表达式cur对应的子孙成员
+ * 
+ * @param json  JSON值
+ * @param cur  ROOT表达式
+ * @param val   待替换的JSON值。val为NULL，表示只查询，否则将查到的子孙成员值替换为val
+ * @return const JSON* 查找到的子孙成员
+ */
+static const JSON *query_root(JSON *json, const char *path, JSON *val)
+{
+    query_ctx ctx = {0};
+
+    assert(json);
+    assert(path);
+
+    ctx.root = json;
+    ctx.path = path;
+    ctx.val = val;
+
+    if (json_type(json) == JSON_OBJ) {
+        return query_member(&ctx, json, path);
+    } else {    
+        return query_child(&ctx, json, path);
+    }
+}
+/**
+ * 在JSON值json中找到路径为path的成员，将其值修改为val
+ * @param json JSON值
+ * @param path 待修改成员的路径，如：basic.dns[1]，空串表示本身
+ * @param val 新的值
+ * @return <0表示失败，否则表示成功
+ */
+int json_set(JSON *json, const char *path, JSON *val)
+{
+    assert(json);
+    assert(path);
+
+    if (!val)
+        return -1;
+    if (query_root(json, path, val))
+        return 0;
+    return -1;
+}
+/**
+ * 在JSON值json中找到路径为path的成员
+ * @param json JSON值
+ * @param path 路径表达式，待查找成员的路径，如：basic.dns[1]，空串表示本身
+ * @return 路径path指示的成员值，不存在则返回NULL
+ */
+const JSON *json_get(const JSON *json, const char *path)
+{
+    assert(json);
+    assert(path);
+
+    return query_root((JSON *)json, path, NULL);
+}
+//#elif ACTIVE_PLAN == 3
+/**
+ * @brief 设置json成员的值
+ * 
+ * @param json JSON值
+ * @param path 待操作的子成员在json中的位置，如：basic.dns[0]。NULL表示json本身
+ * @param value 子成员的新值，以字符串形式表示，五种可能，字符串："200.200.0.1"，数值：8080，BOOL值：true/false，空数组：[], 空对象：{}
+ * @return JSON* path指向的子成员JSON值
+ * @details
+ *  如果path表示的子成员不存在，将自动创建，如果存在，将替换成新值。
+ *  两种情况下不会自动创建，第一种是父对象不存在，第二种是数组成员的前一个兄弟不存在。
+ */
+JSON *json_set_value(JSON *json, const char *path, const char *value)
+{
+    assert(json);
+    assert(value);
+    //TODO:
+    return NULL;
+}
+/**
+ * @brief 从JSON值json中获取一个子成员的值，子成员所在位置由路径path标识
+ * 
+ * @param json JSON值
+ * @param path 待操作的子成员在json中的位置，如：basic.dns[0]。NULL表示json本身
+ * @return const JSON* path指向的子成员
+ */
+const JSON *json_get_value(const JSON *json, const char *path)
+{
+    //TODO:
+    return NULL;
+}
+/**
+ * @brief 从JSON值json中读取一个INT类型配置项的值，配置项的位置由路径path标识
+ * 
+ * @param json JSON值
+ * @param path 待操作的子成员在json中的位置，如：basic.dns[0]。NULL表示json本身
+ * @param def 如果配置项不存在或类型不匹配，返回该值作为缺省值
+ * @return int 配置项的值
+ */
+int json_get_int(const JSON *json, const char *path, int def)
+{
+    const JSON *child = json_get_value(json, path);
+    if (!child)
+        return def;
+    return (int)json_num(child, def);
+}
+/**
+ * @brief 从JSON值json中读取一个BOOL类型配置项的值，配置项的位置由路径path标识
+ * 
+ * @param json JSON值
+ * @param path 待操作的子成员在json中的位置，如：basic.dns[0].enable。NULL表示json本身
+ * @return BOOL 配置项的值
+ * @details 如果配置项不存在或类型不匹配，返回FALSE，当作不启用的意思
+ */
+BOOL json_get_bool(const JSON *json, const char *path)
+{
+    const JSON *child = json_get_value(json, path);
+    if (!child)
+        return FALSE;
+    return json_bool(child);
+}
+/**
+ * @brief 从JSON值json中读取一个字符串类型配置项的值，配置项的位置由路径path标识
+ * 
+ * @param json JSON值
+ * @param path 待操作的子成员在json中的位置，如：basic.dns[0].ip。NULL表示json本身
+ * @return const char* 如果配置项不存在或类型不匹配，返回该值作为缺省值
+ */
+const char *json_get_str(const JSON *json, const char *path, const char *def)
+{
+    const JSON *child = json_get_value(json, path);
+    if (!child)
+        return FALSE;
+    return json_str(child, def);
+}
+
+#endif //ACTIVE_PLAN

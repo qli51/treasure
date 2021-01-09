@@ -1,0 +1,65 @@
+1.什么都不加为全局变量，加my和local即只在一个block中有效，出去就失效，但local能被此block中的子函数调用，sub创建子函数
+
+2. ..可用于累加操作，1..5即为1，2，3，4，5   5..1为空列表，对于纯字符列表，qw可以省去在列表中给字符加双引号
+
+3.shift为取数组最左边元素，pop为取数组最右边元素，unshift为添加元素到最左边，
+
+4.标量前加$,数组前加$,取数组一个index的值也为$，$array[$#array],其中$#为取最后一个索引，-1为取最后一个数字
+
+5.标量前加\为取地址，硬引用的解引用，加${$一个地址}，{}能将地址还原成对应标量，{}可省略，即为$$一个地址
+
+6.my $string_one="abc";
+my $string_two="bc";
+my $string_res=$string_one+$string_two;
+string_res=0,因为字符串四则运算时，非0到9都会被自动抛弃
+my $string_res=$string_one.$string_two;
+$string_res="abcbc",使用.可以将字符串进行连接
+
+7.**为乘幂操作
+
+8.将@赋值给$时，得到的是元素的个数
+
+9.next是continue,last是break
+
+10.foreach my $num(@array){} 不需要定义过多的变量，很方便，foreach取元素时被认定为无顺序，并非从左到右
+
+11.
+对数字数组从小到大排列：sort($a<=>$b)@array
+对字母数组从小到大排列：sort($a cmp $b)@array
+
+12.perl中continue与一般语言不一样，常与until循环连用(不满足条件才执行),continue会与until一起产生作用，until不想循环时，continue也不执行
+continue与untill分开写便于代码维护与分类
+
+13.my $in=<STDIN>标准化输入
+
+14.正则表达式：~/ab/为包含ab，如果本身包含斜线，则在里面的/前加\，只能匹配单行
+\p{属性名}表示这个属性的模式,改成P即为不匹配,查找是否有其他不为对应属性的
+/\p{Space}/,匹配空格,\n也属于Space,\s也可以用于匹配空格
+/\p{Digit}/,匹配数字
+/\p{Hex}\p{Hex}/,匹配两个16进制数字
+world+为匹配world后面d的重复，(world)为匹配整个单词的重复
+(world)\3,匹配3个连续world
+/he(|she) love me/
+[a-z0-9],[^a-z0-9],\d匹配单个数字,\D匹配非数字字符
+\z匹配字符串的末尾，\Z匹配字符串或行的末尾,\G匹配最前面的这次(当出现多个相同的)
+x?：一个或0个 x*：0个或多个 x+：一个或多个 x(m,n):m个到n个
+
+15.正则表达式：.*可以匹配任意且任意多的值
+
+=~/ /：模式匹配，默认只匹配一次
+@array=$string=~/ /g:加g会把所有匹配的值返回存进array，如果不加g只进行一次匹配，且只返回值为布尔值进数组
+
+~s/[a-zA-Z]+/3*2/,将连续的a-z与A-Z替换成3*2：模式替换，默认只替换一次
+~s/(world_one,world_two/$2$1/可实现world_one与world_two的互相替换)
+返回值为更改后的值
+
+~tr/abcde/ABCD/:模式转化，每个对应转化，a对应A，b对应B，c对应C，d对应D，多出来的都会转换成最左边的，e对应D(~tr/a-zA-Z/A-Za-z/,实现大小写转换)，可转化多次
+也可以用于计算某些字符的数量$tmp=$string_one=~tr/ab/ab/,返回值为更改的个数
+
+16.
+if(=~m/windows(?:7|8|9)/)...:每次从预查的部分进行匹配，但不返回括号中匹配的结果，即$1(常跟括号连用用于保存字符串)为空
+if(=~m/windows(?=7|8|9)/)...:匹配一次之后重头开始匹配，而不是从预查的字符(windows)开始继续查找
+if(=~m/windows(?!7|8|9)/)...:除了正向改为负向，其余与?=类似，但前提是也要有windows
+if(=~s/windows(?=7|8|9)/systems/)...:会将windows 7/8/9改成 system 7/8/9，括号中的值不影响
+
+
